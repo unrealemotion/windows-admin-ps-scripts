@@ -1,4 +1,4 @@
-# User Guide: Disable WLMS Service using PsExec
+# Disable WLMS Service using PsExec
 
 ## 1. Purpose
 

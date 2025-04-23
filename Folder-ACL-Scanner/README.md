@@ -1,4 +1,4 @@
-# PowerShell Folder ACL Scanner - User Guide
+# PowerShell Folder ACL Scanner
 
 ## Overview
 

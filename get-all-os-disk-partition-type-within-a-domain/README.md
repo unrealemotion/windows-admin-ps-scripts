@@ -1,4 +1,4 @@
-# README: Active Directory OS Disk Partition Information Script
+# Active Directory OS Disk Partition Information Script
 
 ## 1. Purpose
 
