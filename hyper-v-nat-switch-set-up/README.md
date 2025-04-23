@@ -70,6 +70,3 @@ Once the script completes successfully, configure the network adapter settings w
 *   **Errors During Removal/Creation:** Pay close attention to error messages logged by the script. They often indicate conflicts (e.g., IP address already in use on another adapter) or permissions issues.
 
 ---
-
-*Author: Asher Le*
-*Date: 2025-04-23*
