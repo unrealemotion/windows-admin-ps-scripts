@@ -1,4 +1,4 @@
-# Hyper-V NAT SwitchSwitch Setup Script
+# Hyper-V NAT Switch Setup Script
 
 ## Overview
 
