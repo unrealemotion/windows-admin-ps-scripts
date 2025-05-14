@@ -55,6 +55,7 @@ This is particularly useful in scenarios where files and folders were copied (e.
 
 *   `-SourcePath <String>`: (Mandatory) The full path to the source directory. This directory must exist and contain items with 8.3 short names.
 *   `-DestinationPath <String>`: (Mandatory) The full path to the destination directory. This directory must exist and have a structure identical to the source. 8.3 short names will be applied here.
+*   `-ApplyToChildren`: (Optional) A switch parameter is $false by default and becomes $true if you include it when running the script (e.g., .\Sync-ShortNames.ps1 -SourcePath C:\S -DestinationPath D:\T -ApplyToChildren).
 *   `-Verbose`: (Optional) Displays detailed information about the script's operations.
 *   `-WhatIf`: (Optional) Shows what actions the script would take without actually making any changes. This is highly recommended for a dry run.
     ```powershell

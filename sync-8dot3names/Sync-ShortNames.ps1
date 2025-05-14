@@ -43,7 +43,10 @@ param(
 
     [Parameter(Mandatory = $true, HelpMessage = "Path to the destination directory (identical structure to source).")]
     [ValidateScript({ Test-Path $_ -PathType Container })]
-    [string]$DestinationPath
+    [string]$DestinationPath,
+
+    [Parameter(HelpMessage = "If specified, short names will be copied for child items of items within the source (i.e., recursive). If not specified, only items directly within SourcePath are processed.")]
+    [switch]$ApplyToChildren
 )
 
 #region Administrator Check
@@ -171,7 +174,20 @@ $shortNameCache = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 try {
     Write-Host "Phase 1: Collecting short names from source '$SourcePath'..."
-    $sourceItems = Get-ChildItem -Path $SourcePath -Recurse -Force -ErrorAction SilentlyContinue
+    
+    $gciParams = @{
+        Path = $SourcePath
+        Force = $true
+        ErrorAction = 'SilentlyContinue'
+    }
+    if ($ApplyToChildren) {
+        $gciParams.Recurse = $true
+        Write-Verbose "ApplyToChildren switch specified. Collecting items recursively."
+    } else {
+        Write-Verbose "ApplyToChildren switch NOT specified. Collecting items from the top-level of SourcePath only."
+    }
+    $sourceItems = Get-ChildItem @gciParams
+
     $totalItems = $sourceItems.Count
     $currentItem = 0
 
