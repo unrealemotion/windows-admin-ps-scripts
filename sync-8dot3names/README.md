@@ -10,7 +10,7 @@ This is particularly useful in scenarios where files and folders were copied (e.
 
 *   **Administrator Privilege Check:** Automatically checks if the script is run with Administrator privileges and attempts to self-elevate if not. `fsutil` requires elevation.
 *   **8.3 Name Enablement:** Checks if 8.3 name creation is enabled on the destination volume. If not, it attempts to enable it (with user confirmation via `ShouldProcess`).
-*   **Recursive Scan:** Traverses the entire source directory structure (including subdirectories and files).
+*   **Recursive Scan:** Traverses the entire source directory structure (including subdirectories and files) if used with `-ApplyToChildren` parameter.
 *   **Short Name Collection:** Retrieves the 8.3 short name for each item in the source using the reliable `Scripting.FileSystemObject` COM object.
 *   **Object Model Storage:** Stores the collected information (relative path, short name, item type) in an efficient in-memory list of custom PowerShell objects.
 *   **Targeted Application:** Applies the collected short names to the corresponding items in the destination directory using the `fsutil file setshortname` command.
