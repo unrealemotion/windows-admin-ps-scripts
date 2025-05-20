@@ -2,7 +2,7 @@
 
 ## Overview
 
-`BR-WinRE.ps1` is a PowerShell script designed to manage the Windows Recovery Environment (WinRE) partition. It offers two primary modes of operation:
+`Rel-WinRE.ps1` is a PowerShell script designed to manage the Windows Recovery Environment (WinRE) partition. It offers two primary modes of operation:
 
 1.  **Full Mode (`-Mode Full`):**
     *   Backs up the existing WinRE partition content.
@@ -66,11 +66,11 @@
 **Important:** Always back up important data before running scripts that modify disk partitions.
 
 1.  **Full Mode (Backup, Delete, Recreate, Restore):**
-    *   Save the script as `BR-WinRE.ps1`.
+    *   Save the script as `RelRel-WinRE.ps1`.
     *   Open PowerShell as an Administrator.
     *   Navigate to the directory where you saved the script.
-    *   Run: `.\BR-WinRE.ps1`
-    *   Or explicitly: `.\BR-WinRE.ps1 -Mode Full`
+    *   Run: `.\RelRel-WinRE.ps1`
+    *   Or explicitly: `.\Rel-WinRE.ps1 -Mode Full`
     *   A backup folder (e.g., `WinRE_Backup_YYYYMMDD-HHMMSS`) will be created in the same directory as the script.
     *   **Follow the on-screen prompts carefully, especially when asked to expand the C: drive and leave unallocated space.**
 
@@ -80,7 +80,7 @@
     *   Open PowerShell as an Administrator.
     *   Navigate to the directory where you saved the script.
     *   Run (replace the path with your actual backup path):
-        `.\BR-WinRE.ps1 -Mode RestoreOnly -WinREBackupPathRestoreMode "C:\Path\To\Your\WinRE_Backup_Folder"`
+        `.\Rel-WinRE.ps1 -Mode RestoreOnly -WinREBackupPathRestoreMode "C:\Path\To\Your\WinRE_Backup_Folder"`
     *   The script will prompt for the size of the unallocated space you've prepared.
 
 ## Script Workflow (Simplified)
