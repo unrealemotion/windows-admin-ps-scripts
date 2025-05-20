@@ -1,4 +1,4 @@
-# Windows Recovery Environment and Relocation Tool
+# Windows Recovery Environment Relocation Tool
 
 ## Overview
 
