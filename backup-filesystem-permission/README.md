@@ -134,15 +134,6 @@ Example location: `C:\Scripts\PermissionBackups\Backup_20231027_100000\`
     ```
     *(Note: `-WhatIf` here primarily affects file/directory creation for output. ACLs will still be read.)*
 
-## Restoring Permissions (Conceptual)
-
-This script focuses on the backup of ACLs. Restoring permissions is a separate operation that requires careful consideration. The `FullPermissionsBackup.clixml` file is designed for this purpose.
-
-**Important:** Restoring permissions, especially recursively or in bulk, is a sensitive operation.
-*   **Test Thoroughly:** Always test restoration procedures in a non-production environment first.
-*   **Understand ACLs:** Ensure you understand the implications of applying ACLs (inheritance, ownership, etc.).
-*   **Backup Current State:** Before attempting a restore, consider backing up the *current* permissions of the target, in case the restore does not go as planned.
-
 ## Important Considerations
 
 *   **BACKUP YOUR DATA:** While this script performs backups of ACLs, always ensure you have full data backups as part of your overall disaster recovery strategy. This script does not back up file/folder *content*.
