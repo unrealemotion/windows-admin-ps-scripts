@@ -388,7 +388,44 @@ Add-ReportSimpleLine ("Script execution time: {0:N2} seconds" -f $scriptDuration
 Add-ReportSimpleLine ("Report generated on: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')")
 
 if ($ReportPath) {
-    Write-Host "`nSaving report to: $ReportPath" -ForegroundColor Yellow
+    $ReportOutputDirectory = $ReportPath 
+
+    # --- Generate the filename ---
+    # 1. Get the base name of the scanned directory from $resolvedPathItem (which is validated)
+    $dirScannedNamePart = Split-Path -Path $resolvedPathItem.FullName -Leaf
+    
+    # Handle cases where Split-Path might return an empty, purely whitespace, or problematic name (like just '/')
+    if ([string]::IsNullOrWhiteSpace($dirScannedNamePart) -or $dirScannedNamePart -eq '/' -or $dirScannedNamePart -eq '\') {
+        # For root paths (e.g., "C:\", "/"), try to use the drive/mount name.
+        if ($resolvedPathItem.FullName -eq $resolvedPathItem.PSDrive.Root) {
+            $dirScannedNamePart = $resolvedPathItem.PSDrive.Name + "_root"
+        } else {
+            # Generic fallback if the leaf name is unusual but not a clear drive root
+            $dirScannedNamePart = "target_scan" 
+        }
+    }
+
+    # 2. Sanitize the directory name part for safe use in a filename
+
+    $sanitizedDirScannedName = $dirScannedNamePart -replace '[\\/:*?"<>|]+', '_' -replace '\s+', '_' -replace '_+', '_'
+    $sanitizedDirScannedName = $sanitizedDirScannedName.Trim('_')
+
+    # If, after all sanitization, the name part is empty (e.g., original was just '///' or purely invalid chars), use a default.
+    if ([string]::IsNullOrWhiteSpace($sanitizedDirScannedName)) {
+        $sanitizedDirScannedName = "storage_scan_report" # Default base name if derived one is empty
+    }
+    
+    # 3. Get the current datetime string in a sortable and unique format
+    $datetimeString = Get-Date -Format 'yyyyMMddHHmmss'
+    
+    # 4. Construct the filename
+    $fileName = "$($sanitizedDirScannedName)_storage_summary_$($datetimeString).txt"
+    
+    # 5. Construct the full path for the report file
+    $finalOutputFilePath = Join-Path -Path $ReportOutputDirectory -ChildPath $fileName
+    # --- End of filename generation ---
+
+    Write-Host "`nSaving report to: $finalOutputFilePath" -ForegroundColor Yellow
     try {
         $fileReportHeader = @"
 Directory Space Analysis Report
@@ -404,17 +441,24 @@ Owner Retrieval Failures (Get-Acl related): $ownerRetrievalFailures
 "@
         $finalReportContent = $fileReportHeader + "`n" + $reportOutput.ToString()
         
-        $ReportDir = Split-Path -Path $ReportPath -Parent
-        if ($ReportDir -and (-not (Test-Path -Path $ReportDir))) {
-            Write-Host "Creating report directory: $ReportDir"
-            New-Item -Path $ReportDir -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
+        # Ensure the $ReportOutputDirectory exists.
+        if (-not (Test-Path -Path $ReportOutputDirectory -PathType Container)) {
+            Write-Host "Creating report directory: $ReportOutputDirectory"
+            try {
+                New-Item -Path $ReportOutputDirectory -ItemType Directory -Force -ErrorAction Stop | Out-Null
+            }
+            catch {
+                Write-Error "Failed to create report directory '$ReportOutputDirectory': $($_.Exception.Message)"
+                # Optionally, exit or throw here if directory creation is critical
+                throw "Cannot proceed without report directory." 
+            }
         }
 
-        Set-Content -Path $ReportPath -Value $finalReportContent -Encoding UTF8 -Force
-        Write-Host "Report saved successfully to '$ReportPath'." -ForegroundColor Green
+        Set-Content -Path $finalOutputFilePath -Value $finalReportContent -Encoding UTF8 -Force
+        Write-Host "Report saved successfully to '$finalOutputFilePath'." -ForegroundColor Green
     }
     catch {
-        Write-Error "Error saving report to '$ReportPath': $($_.Exception.Message)"
+        Write-Error "Error saving report to '$finalOutputFilePath': $($_.Exception.Message)"
     }
 }
 

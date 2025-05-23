@@ -60,8 +60,7 @@ The script is particularly useful for diagnosing situations where a directory is
     **Example with Report Saved to File:**
     (The report filename includes a timestamp to ensure uniqueness for repeated scans.)
     ```powershell
-    $reportFileName = "C:\Reports\AppData_Analysis_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
-    .\Analyze-DirectorySpace.ps1 -DirectoryPath "C:\Users\YourUser\AppData\Local" -ReportPath $reportFileName
+    .\Analyze-DirectorySpace.ps1 -DirectoryPath "C:\Users\YourUser\AppData\Local" -ReportPath "C:\Reports\"
     ```
 
 ### Command-Line Parameters
@@ -74,7 +73,7 @@ The script is particularly useful for diagnosing situations where a directory is
     *   The number of largest files to display in the "Top N Largest Files" report.
 *   `-ReportPath <String>`
     *   Optional.
-    *   If specified, the full path (including filename, e.g., `C:\Reports\ScanResult.txt`) where the complete analysis report will be saved as a text file. The report is saved in UTF-8 encoding. If the parent directory for the report does not exist, the script will attempt to create it.
+    *   If specified, the full path (e.g., `C:\Reports\`) where the complete analysis report will be saved as a text file. The report is saved in UTF-8 encoding. If the parent directory for the report does not exist, the script will attempt to create it.
 *   `-Verbose`
     *   A common PowerShell parameter. While this script doesn't have extensive custom verbose messages beyond its standard output, using `-Verbose` can sometimes provide more detail from underlying cmdlets if errors occur.
 *   `-WhatIf`
