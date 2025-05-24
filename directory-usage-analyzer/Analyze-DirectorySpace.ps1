@@ -13,8 +13,7 @@ param(
 # Script Start Time
 $scriptStartTime = Get-Date
 
-# Clear any previous gciErrors variable from the session to avoid accumulation
-Remove-Variable gciErrors -ErrorAction SilentlyContinue
+
 
 # --- Helper Function: Format File Size ---
 function Format-FileSize {
@@ -117,44 +116,6 @@ Write-Host "Phase 1 Complete: Collected data for $totalFilesScanned files. Total
 
 # --- Analysis and Summarization ---
 Write-Host "`nPhase 2: Analyzing data and generating summaries..."
-$reportOutput = [System.Text.StringBuilder]::new()
-
-function Add-ReportEntry {
-    param (
-        [string]$Title,
-        $Data,
-        [switch]$IsRawString
-    )
-    [void]$reportOutput.AppendLine()
-    [void]$reportOutput.AppendLine(("-" * 80))
-    [void]$reportOutput.AppendLine($Title)
-    [void]$reportOutput.AppendLine(("-" * $Title.Length))
-
-    Write-Host "`n" -ForegroundColor Cyan
-    Write-Host $Title -ForegroundColor Green
-    Write-Host (("-" * $Title.Length)) -ForegroundColor Green
-
-    if ($Data -and ($Data.Count -gt 0 -or $IsRawString)) { # Check if $Data has items or is raw string
-        if ($IsRawString) {
-            [void]$reportOutput.AppendLine($Data)
-            Write-Host $Data
-        } else {
-            $formattedData = $Data | Format-Table -AutoSize | Out-String
-            [void]$reportOutput.AppendLine($formattedData)
-            $Data | Format-Table -AutoSize
-        }
-    } else {
-        $noDataMsg = "No data to display for this section."
-        [void]$reportOutput.AppendLine($noDataMsg)
-        Write-Host $noDataMsg
-    }
-}
-
-function Add-ReportSimpleLine {
-    param ([string]$Line)
-    [void]$reportOutput.AppendLine($Line)
-    Write-Host $Line
-}
 
 # A. Summary by Extension Type
 if ($allFilesData.Count -gt 0) {
@@ -177,8 +138,7 @@ if ($allFilesData.Count -gt 0) {
                                 "0.00"
                             } else { "" }
                         }}
-    Add-ReportEntry -Title "Summary by File Extension Type" -Data $extensionSummary
-} else { Add-ReportEntry -Title "Summary by File Extension Type" -Data $null }
+}
 
 # B. Summary by Creation Time (Grouped by Date)
 if ($allFilesData.Count -gt 0) {
@@ -224,8 +184,7 @@ if ($allFilesData.Count -gt 0) {
                                 "0.00"
                             } else { "" }
                         }}
-    Add-ReportEntry -Title "Summary by File Creation Date (Most Recent First)" -Data $creationDateSummary
-} else { Add-ReportEntry -Title "Summary by File Creation Date (Most Recent First)" -Data $null }
+}
 
 # C. Summary by Last Write Time (Grouped by Date)
 if ($allFilesData.Count -gt 0) {
@@ -270,8 +229,7 @@ if ($allFilesData.Count -gt 0) {
                                 "0.00"
                             } else { "" }
                         }}
-    Add-ReportEntry -Title "Summary by File Last Write Date (Most Recent First)" -Data $lastWriteDateSummary
-} else { Add-ReportEntry -Title "Summary by File Last Write Date (Most Recent First)" -Data $null }
+}
 
 # D. Summary by File Owner
 if ($allFilesData.Count -gt 0) {
@@ -294,12 +252,11 @@ if ($allFilesData.Count -gt 0) {
                                 "0.00"
                             } else { "" }
                         }}
-    Add-ReportEntry -Title "Summary by File Owner" -Data $ownerSummary
     if ($ownerRetrievalFailures -gt 0) {
         $ownerNote = "Note: Owner information could not be retrieved or had errors for $ownerRetrievalFailures files (see specific owner values like 'Access Denied', 'Error Retrieving Owner', etc.)."
-        Add-ReportSimpleLine $ownerNote
+
     }
-} else { Add-ReportEntry -Title "Summary by File Owner" -Data $null }
+}
 
 # E.1. Top N Largest Files
 if ($allFilesData.Count -gt 0) {
@@ -308,9 +265,7 @@ if ($allFilesData.Count -gt 0) {
                       @{Name = "Size"; Expression = { Format-FileSize $_.SizeInBytes }},
                       @{Name = "LastWriteTime"; Expression = {$_.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")}},
                       Owner
-    Add-ReportEntry -Title "Top $ShowTopNFiles Largest Files" -Data $topNFiles
-} else { Add-ReportEntry -Title "Top $ShowTopNFiles Largest Files" -Data $null }
-
+} 
 # E.2. Largest Folders (Top Level)
 $folderSizeData = [ordered]@{}
 $canonicalScannedPath = (Resolve-Path $DirectoryPath).ProviderPath.TrimEnd('\/')
@@ -359,8 +314,7 @@ if ($folderSizeData.Keys.Count -gt 0) {
                     @{Name = "TotalSizeReadable"; Expression = { Format-FileSize $_.TotalSizeBytes }},
                     @{Name = "Percentage (%)"; Expression = { $_.IntermediatePercentage }}
     
-    Add-ReportEntry -Title "Summary by Top-Level Folder Size (within '$((Get-Item $DirectoryPath).Name)')" -Data $topLevelFolderSummary
-} else { Add-ReportEntry -Title "Summary by Top-Level Folder Size (within '$((Get-Item $DirectoryPath).Name)')" -Data $null }
+}
 
 
 # F. Overall Summary
@@ -374,92 +328,288 @@ $overallSummaryObject = [PSCustomObject]@{
     ItemsSkippedDueToAccess = $skippedItems.Count
 }
 $overallSummaryString = $overallSummaryObject | Format-List | Out-String
-Add-ReportEntry -Title "Overall Directory Summary" -Data $overallSummaryString.TrimEnd() -IsRawString
 
-if ($skippedItems.Count -gt 0) {
-    Add-ReportSimpleLine "`nSkipped Items/Paths Due to Access Errors during initial scan:"
-    $skippedItems | ForEach-Object { Add-ReportSimpleLine "- $_" }
-}
 
 $scriptEndTime = Get-Date
 $scriptDuration = $scriptEndTime - $scriptStartTime
-Add-ReportSimpleLine ("`n" + ("-" * 80))
-Add-ReportSimpleLine ("Script execution time: {0:N2} seconds" -f $scriptDuration.TotalSeconds)
-Add-ReportSimpleLine ("Report generated on: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')")
 
-if ($ReportPath) {
-    $ReportOutputDirectory = $ReportPath 
+# Helper function for HTML encoding data. Uses System.Net.WebUtility for better PS Core compatibility.
+function Encode-HtmlData {
+    param (
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        $InputObject
+    )
+    if ($null -eq $InputObject) { return "" }
+    return [System.Net.WebUtility]::HtmlEncode($InputObject.ToString())
+}
 
-    # --- Generate the filename ---
-    # 1. Get the base name of the scanned directory from $resolvedPathItem (which is validated)
-    $dirScannedNamePart = Split-Path -Path $resolvedPathItem.FullName -Leaf
-    
-    # Handle cases where Split-Path might return an empty, purely whitespace, or problematic name (like just '/')
-    if ([string]::IsNullOrWhiteSpace($dirScannedNamePart) -or $dirScannedNamePart -eq '/' -or $dirScannedNamePart -eq '\') {
-        # For root paths (e.g., "C:\", "/"), try to use the drive/mount name.
-        if ($resolvedPathItem.FullName -eq $resolvedPathItem.PSDrive.Root) {
-            $dirScannedNamePart = $resolvedPathItem.PSDrive.Name + "_root"
-        } else {
-            # Generic fallback if the leaf name is unusual but not a clear drive root
-            $dirScannedNamePart = "target_scan" 
-        }
+# Helper function to generate an HTML table from an array of objects
+function ConvertTo-TailwindHtmlTable {
+    param(
+        [string]$TableId,
+        [string]$Title,
+        [array]$Data,
+        [System.Collections.IDictionary]$PropertyMapping # Keys are Headers, Values are PropertyNames or ScriptBlocks
+    )
+
+    if (-not $Data -or $Data.Count -eq 0) {
+        $noDataMessage = "<p class='text-gray-600 italic mt-2'>No data available for this section.</p>"
+        return $noDataMessage 
     }
 
-    # 2. Sanitize the directory name part for safe use in a filename
-
-    $sanitizedDirScannedName = $dirScannedNamePart -replace '[\\/:*?"<>|]+', '_' -replace '\s+', '_' -replace '_+', '_'
-    $sanitizedDirScannedName = $sanitizedDirScannedName.Trim('_')
-
-    # If, after all sanitization, the name part is empty (e.g., original was just '///' or purely invalid chars), use a default.
-    if ([string]::IsNullOrWhiteSpace($sanitizedDirScannedName)) {
-        $sanitizedDirScannedName = "storage_scan_report" # Default base name if derived one is empty
+    $htmlBuilder = [System.Text.StringBuilder]::new()
+    [void]$htmlBuilder.AppendLine("<div class='overflow-x-auto'>")
+    [void]$htmlBuilder.AppendLine("<table id='$TableId' class='min-w-full bg-white rounded-lg shadow overflow-hidden'>")
+    [void]$htmlBuilder.AppendLine("  <thead class='bg-gray-800 text-white'>")
+    [void]$htmlBuilder.AppendLine("    <tr>")
+    foreach ($header in $PropertyMapping.Keys) {
+        # Center header text as well for consistency, or keep text-left if preferred
+        [void]$htmlBuilder.AppendLine("      <th class='py-3 px-4 text-center uppercase font-semibold text-sm'>$(Encode-HtmlData $header)</th>")
     }
-    
-    # 3. Get the current datetime string in a sortable and unique format
-    $datetimeString = Get-Date -Format 'yyyyMMddHHmmss'
-    
-    # 4. Construct the filename
-    $fileName = "$($sanitizedDirScannedName)_storage_summary_$($datetimeString).txt"
-    
-    # 5. Construct the full path for the report file
-    $finalOutputFilePath = Join-Path -Path $ReportOutputDirectory -ChildPath $fileName
-    # --- End of filename generation ---
+    [void]$htmlBuilder.AppendLine("    </tr>")
+    [void]$htmlBuilder.AppendLine("  </thead>")
+    [void]$htmlBuilder.AppendLine("  <tbody class='text-gray-700 text-sm'>")
 
-    Write-Host "`nSaving report to: $finalOutputFilePath" -ForegroundColor Yellow
-    try {
-        $fileReportHeader = @"
-Directory Space Analysis Report
-=================================
-Scanned Directory: $DirectoryPath
-Report Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-Analysis Duration: $($scriptDuration.TotalSeconds.ToString("N2")) seconds
-Total Files Scanned: $totalFilesScanned
-Total Scanned Size: $(Format-FileSize $totalSizeScanned)
-Skipped Items (Initial Scan): $($skippedItems.Count)
-Owner Retrieval Failures (Get-Acl related): $ownerRetrievalFailures
-=================================
-"@
-        $finalReportContent = $fileReportHeader + "`n" + $reportOutput.ToString()
-        
-        # Ensure the $ReportOutputDirectory exists.
-        if (-not (Test-Path -Path $ReportOutputDirectory -PathType Container)) {
-            Write-Host "Creating report directory: $ReportOutputDirectory"
+    foreach ($item in $Data) {
+        [void]$htmlBuilder.AppendLine("    <tr class='border-b border-gray-200 hover:bg-gray-100 transition-colors duration-150 ease-in-out'>")
+        foreach ($entry in $PropertyMapping.GetEnumerator()) {
+            $header = $entry.Key # Not used in this loop iteration for cell value but kept for context
+            $propertyOrScriptBlock = $entry.Value
+            $cellValue = ""
+            
             try {
-                New-Item -Path $ReportOutputDirectory -ItemType Directory -Force -ErrorAction Stop | Out-Null
+                if ($propertyOrScriptBlock -is [string]) {
+                    $props = $propertyOrScriptBlock.Split('.')
+                    $currentValue = $item
+                    foreach($propName in $props){
+                        if($null -ne $currentValue -and $currentValue.PSObject.Properties[$propName]){
+                            $currentValue = $currentValue.PSObject.Properties[$propName].Value
+                        } else {
+                            $currentValue = $null
+                            break
+                        }
+                    }
+                    $cellValue = Encode-HtmlData $currentValue
+                } elseif ($propertyOrScriptBlock -is [ScriptBlock]) {
+                    $cellValue = Invoke-Command -ScriptBlock $propertyOrScriptBlock -ArgumentList $item 
+                } else {
+                    $cellValue = "[Invalid PropertyMapping Value Type]"
+                }
             }
             catch {
-                Write-Error "Failed to create report directory '$ReportOutputDirectory': $($_.Exception.Message)"
-                # Optionally, exit or throw here if directory creation is critical
-                throw "Cannot proceed without report directory." 
+                $cellValue = "[Error Accessing Property: $($propertyOrScriptBlock)]"
+                Write-Warning "Error processing property '$($propertyOrScriptBlock)' for item: $($item | Out-String). Error: $($_.Exception.Message)"
             }
-        }
+            
+            $textAlign = "text-center" 
 
-        Set-Content -Path $finalOutputFilePath -Value $finalReportContent -Encoding UTF8 -Force
-        Write-Host "Report saved successfully to '$finalOutputFilePath'." -ForegroundColor Green
+            [void]$htmlBuilder.AppendLine("      <td class='py-3 px-4 $textAlign whitespace-nowrap'>$cellValue</td>")
+        }
+        [void]$htmlBuilder.AppendLine("    </tr>")
     }
-    catch {
-        Write-Error "Error saving report to '$finalOutputFilePath': $($_.Exception.Message)"
+
+    [void]$htmlBuilder.AppendLine("  </tbody>")
+    [void]$htmlBuilder.AppendLine("</table>")
+    [void]$htmlBuilder.AppendLine("</div>")
+    return $htmlBuilder.ToString()
+}
+
+
+
+# --- HTML Report Generation ---
+$reportGeneratedTime = Get-Date
+$htmlContent = [System.Text.StringBuilder]::new()
+
+# Tailwind CSS via CDN was chosen for modern styling with utility classes, providing flexibility and a professional look.
+[void]$htmlContent.AppendLine("<!DOCTYPE html>")
+[void]$htmlContent.AppendLine("<html lang='en'>")
+[void]$htmlContent.AppendLine("<head>")
+[void]$htmlContent.AppendLine("  <meta charset='UTF-8'>")
+[void]$htmlContent.AppendLine("  <meta name='viewport' content='width=device-width, initial-scale=1.0'>")
+[void]$htmlContent.AppendLine("  <title>Directory Space Analysis Report</title>")
+[void]$htmlContent.AppendLine("  <script src='https://cdn.tailwindcss.com'></script>") # Tailwind CSS CDN
+[void]$htmlContent.AppendLine("  <style>")
+[void]$htmlContent.AppendLine("    /* Custom styles if needed, e.g., for specific table sorting icons or very specific tweaks */")
+[void]$htmlContent.AppendLine("    body { font-family: 'Inter', sans-serif; }") 
+[void]$htmlContent.AppendLine("    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }") 
+[void]$htmlContent.AppendLine("  </style>")
+[void]$htmlContent.AppendLine("</head>")
+[void]$htmlContent.AppendLine("<body class='bg-gray-100 text-gray-800 leading-normal tracking-normal p-0 m-0'>")
+[void]$htmlContent.AppendLine("  <div class='container mx-auto p-4 md:p-6 lg:p-8'>") # Main container
+
+# Header
+[void]$htmlContent.AppendLine("    <header class='mb-8 p-6 bg-white rounded-lg shadow-lg text-center'>")
+[void]$htmlContent.AppendLine("      <h1 class='text-3xl md:text-4xl font-bold text-indigo-600'>Directory Space Analysis Report</h1>")
+[void]$htmlContent.AppendLine("      <p class='text-lg md:text-xl text-gray-700 mt-2'>Target Directory: <span class='font-semibold'>$(Encode-HtmlData $DirectoryPath)</span></p>")
+[void]$htmlContent.AppendLine("      <p class='text-sm text-gray-500 mt-1'>Report Generated: $($reportGeneratedTime.ToString('yyyy-MM-dd HH:mm:ss'))</p>")
+[void]$htmlContent.AppendLine("    </header>")
+
+[void]$htmlContent.AppendLine("    <main>")
+
+# Section: Overall Summary
+[void]$htmlContent.AppendLine("    <section id='overall-summary' class='mb-8 p-6 bg-white rounded-lg shadow-md'>")
+[void]$htmlContent.AppendLine("      <h2 class='text-2xl font-semibold text-gray-700 mb-4 border-b pb-2'>Overall Summary</h2>")
+[void]$htmlContent.AppendLine("      <div class='grid grid-cols-1 md:grid-cols-2 gap-4 text-sm'>")
+[void]$htmlContent.AppendLine("        <div><strong class='text-gray-600'>Scanned Directory:</strong> <span class='break-all'>$(Encode-HtmlData $overallSummaryObject.ScannedDirectory)</span></div>")
+[void]$htmlContent.AppendLine("        <div><strong class='text-gray-600'>Total Size of Directory:</strong> $(Encode-HtmlData $overallSummaryObject.TotalSizeOfDirectory)</div>") # Already formatted by Format-FileSize
+[void]$htmlContent.AppendLine("        <div><strong class='text-gray-600'>Total Files Found:</strong> $(Encode-HtmlData $overallSummaryObject.TotalFilesFound)</div>")
+[void]$htmlContent.AppendLine("        <div><strong class='text-gray-600'>Total Folders Found:</strong> $(Encode-HtmlData $overallSummaryObject.TotalFoldersFound)</div>") # $totalFoldersScanned
+[void]$htmlContent.AppendLine("        <div><strong class='text-gray-600'>Items Skipped (Initial Scan):</strong> $(Encode-HtmlData $overallSummaryObject.ItemsSkippedDueToAccess)</div>")
+[void]$htmlContent.AppendLine("        <div><strong class='text-gray-600'>Owner Retrieval Failures:</strong> $(Encode-HtmlData $ownerRetrievalFailures)</div>")
+[void]$htmlContent.AppendLine("      </div>")
+[void]$htmlContent.AppendLine("    </section>")
+
+# Section: Top N Largest Files
+if ($topNFiles -and $topNFiles.Count -gt 0) {
+    [void]$htmlContent.AppendLine("    <section id='top-n-files' class='mb-8 p-6 bg-white rounded-lg shadow-md'>")
+    [void]$htmlContent.AppendLine("      <h2 class='text-2xl font-semibold text-gray-700 mb-4 border-b pb-2'>Top $($ShowTopNFiles) Largest Files</h2>")
+    $topNFilesProps = [ordered]@{
+        "File Name" = 'Name' # Assuming $topNFiles items have a Name property; if not, adjust or use FullName
+        "Full Path" = 'FullName'
+        "Size" = 'Size' # This is already formatted by Format-FileSize in the original data prep
+        "Last Write Time" = 'LastWriteTime'
+        "Owner" = 'Owner'
     }
+    # Create a temporary projection if Name is not directly on $topNFiles but FullName is
+    $projectedTopNFiles = $topNFiles | Select-Object FullName, @{N='Name';E={Split-Path $_.FullName -Leaf}}, Size, LastWriteTime, Owner
+    [void]$htmlContent.AppendLine($(ConvertTo-TailwindHtmlTable -TableId "topNFilesTable" -Title "Top N Files" -Data $projectedTopNFiles -PropertyMapping $topNFilesProps))
+    [void]$htmlContent.AppendLine("    </section>")
+}
+
+# Section: Summary by Top-Level Folder Size
+if ($topLevelFolderSummary -and $topLevelFolderSummary.Count -gt 0) {
+    [void]$htmlContent.AppendLine("    <section id='folder-summary' class='mb-8 p-6 bg-white rounded-lg shadow-md'>")
+    [void]$htmlContent.AppendLine("      <h2 class='text-2xl font-semibold text-gray-700 mb-4 border-b pb-2'>Summary by Top-Level Folder Size (within '$(Encode-HtmlData ((Get-Item $DirectoryPath).Name))')</h2>")
+    $folderSummaryProps = [ordered]@{
+        "Folder Name" = 'FolderName'
+        "Total Files" = 'TotalFiles'
+        "Total Size" = 'TotalSizeReadable'
+        "Percentage (%)" = 'Percentage (%)'
+    }
+    [void]$htmlContent.AppendLine($(ConvertTo-TailwindHtmlTable -TableId "folderSummaryTable" -Title "Folder Summary" -Data $topLevelFolderSummary -PropertyMapping $folderSummaryProps))
+    [void]$htmlContent.AppendLine("    </section>")
+}
+
+# Section: Summary by File Extension Type
+if ($extensionSummary -and $extensionSummary.Count -gt 0) {
+    [void]$htmlContent.AppendLine("    <section id='extension-summary' class='mb-8 p-6 bg-white rounded-lg shadow-md'>")
+    [void]$htmlContent.AppendLine("      <h2 class='text-2xl font-semibold text-gray-700 mb-4 border-b pb-2'>Summary by File Extension</h2>")
+    $extSummaryProps = [ordered]@{
+        "Extension" = 'Extension'
+        "File Count" = 'Count'
+        "Total Size" = 'TotalSizeReadable'
+        "Percentage (%)" = 'Percentage (%)'
+    }
+    [void]$htmlContent.AppendLine($(ConvertTo-TailwindHtmlTable -TableId "extensionSummaryTable" -Title "Extension Summary" -Data $extensionSummary -PropertyMapping $extSummaryProps))
+    [void]$htmlContent.AppendLine("    </section>")
+}
+
+# Section: Summary by File Owner
+if ($ownerSummary -and $ownerSummary.Count -gt 0) {
+    [void]$htmlContent.AppendLine("    <section id='owner-summary' class='mb-8 p-6 bg-white rounded-lg shadow-md'>")
+    [void]$htmlContent.AppendLine("      <h2 class='text-2xl font-semibold text-gray-700 mb-4 border-b pb-2'>Summary by File Owner</h2>")
+    $ownerSummaryProps = [ordered]@{
+        "Owner" = 'Owner'
+        "File Count" = 'Count'
+        "Total Size" = 'TotalSizeReadable'
+        "Percentage (%)" = 'Percentage (%)'
+    }
+    [void]$htmlContent.AppendLine($(ConvertTo-TailwindHtmlTable -TableId "ownerSummaryTable" -Title "Owner Summary" -Data $ownerSummary -PropertyMapping $ownerSummaryProps))
+    if ($ownerRetrievalFailures -gt 0) {
+        [void]$htmlContent.AppendLine("      <p class='mt-3 text-sm text-orange-600'>Note: Owner information could not be retrieved or had errors for $($ownerRetrievalFailures) files.</p>")
+    }
+    [void]$htmlContent.AppendLine("    </section>")
+}
+
+# Section: Summary by Creation Date
+if ($creationDateSummary -and $creationDateSummary.Count -gt 0) {
+    [void]$htmlContent.AppendLine("    <section id='creation-date-summary' class='mb-8 p-6 bg-white rounded-lg shadow-md'>")
+    [void]$htmlContent.AppendLine("      <h2 class='text-2xl font-semibold text-gray-700 mb-4 border-b pb-2'>Summary by File Creation Date (Most Recent First)</h2>")
+    $creationDateProps = [ordered]@{
+        "Creation Date" = 'CreationDate'
+        "File Count" = 'Count'
+        "Total Size" = 'TotalSizeReadable'
+        "Percentage (%)" = 'Percentage (%)'
+    }
+    [void]$htmlContent.AppendLine($(ConvertTo-TailwindHtmlTable -TableId "creationDateSummaryTable" -Title "Creation Date Summary" -Data $creationDateSummary -PropertyMapping $creationDateProps))
+    [void]$htmlContent.AppendLine("    </section>")
+}
+
+# Section: Summary by Last Write Date
+if ($lastWriteDateSummary -and $lastWriteDateSummary.Count -gt 0) {
+    [void]$htmlContent.AppendLine("    <section id='last-write-date-summary' class='mb-8 p-6 bg-white rounded-lg shadow-md'>")
+    [void]$htmlContent.AppendLine("      <h2 class='text-2xl font-semibold text-gray-700 mb-4 border-b pb-2'>Summary by File Last Write Date (Most Recent First)</h2>")
+    $lastWriteDateProps = [ordered]@{
+        "Last Write Date" = 'LastWriteDate'
+        "File Count" = 'Count'
+        "Total Size" = 'TotalSizeReadable'
+        "Percentage (%)" = 'Percentage (%)'
+    }
+    [void]$htmlContent.AppendLine($(ConvertTo-TailwindHtmlTable -TableId "lastWriteDateSummaryTable" -Title "Last Write Date Summary" -Data $lastWriteDateSummary -PropertyMapping $lastWriteDateProps))
+    [void]$htmlContent.AppendLine("    </section>")
+}
+
+# Section: Skipped Items
+if ($skippedItems -and $skippedItems.Count -gt 0) {
+    [void]$htmlContent.AppendLine("    <section id='skipped-items' class='mb-8 p-6 bg-white rounded-lg shadow-md'>")
+    [void]$htmlContent.AppendLine("      <h2 class='text-2xl font-semibold text-orange-600 mb-4 border-b pb-2'>Skipped Items/Paths (Access Errors During Initial Scan)</h2>")
+    [void]$htmlContent.AppendLine("      <ul class='list-disc list-inside text-sm text-gray-700 space-y-1 max-h-60 overflow-y-auto'>")
+    foreach ($item in $skippedItems) {
+        [void]$htmlContent.AppendLine("        <li class='break-all'>$(Encode-HtmlData $item)</li>")
+    }
+    [void]$htmlContent.AppendLine("      </ul>")
+    [void]$htmlContent.AppendLine("    </section>")
+}
+
+[void]$htmlContent.AppendLine("    </main>")
+
+# Footer
+[void]$htmlContent.AppendLine("    <footer class='mt-10 py-6 text-center text-sm text-gray-500 border-t border-gray-300'>")
+[void]$htmlContent.AppendLine("      <p>Script execution time: $(Encode-HtmlData (($scriptDuration.TotalSeconds).ToString('N2'))) seconds.</p>")
+[void]$htmlContent.AppendLine("      <p>Asher Le © $($reportGeneratedTime.Year)</p>")
+[void]$htmlContent.AppendLine("    </footer>")
+
+[void]$htmlContent.AppendLine("  </div>") # End of container
+[void]$htmlContent.AppendLine("</body>")
+[void]$htmlContent.AppendLine("</html>")
+
+# --- Save the HTML Report ---
+# Determine output directory
+$outputReportDirectory = $PSScriptRoot # Default to script's directory
+if ($ReportPath) { # If ReportPath parameter is specified, use it as the directory
+    $outputReportDirectory = $ReportPath
+}
+
+# Filename Generation (similar to original, but for .html)
+$dirScannedNamePart = Split-Path -Path $resolvedPathItem.FullName -Leaf
+if ([string]::IsNullOrWhiteSpace($dirScannedNamePart) -or $dirScannedNamePart -eq '/' -or $dirScannedNamePart -eq '\') {
+    if ($resolvedPathItem.FullName -eq $resolvedPathItem.PSDrive.Root) {
+        $dirScannedNamePart = $resolvedPathItem.PSDrive.Name + "_root"
+    } else {
+        $dirScannedNamePart = "target_scan"
+    }
+}
+$sanitizedDirScannedName = $dirScannedNamePart -replace '[\\/:*?"<>|]+', '_' -replace '\s+', '_' -replace '_+', '_'
+$sanitizedDirScannedName = $sanitizedDirScannedName.Trim('_')
+if ([string]::IsNullOrWhiteSpace($sanitizedDirScannedName)) {
+    $sanitizedDirScannedName = "storage_scan_report"
+}
+$datetimeStringForFile = Get-Date -Format 'yyyyMMddHHmmss'
+$htmlFileName = "$($sanitizedDirScannedName)_storage_summary_$($datetimeStringForFile).html"
+$finalHtmlReportPath = Join-Path -Path $outputReportDirectory -ChildPath $htmlFileName
+
+Write-Host "`nSaving HTML report to: $finalHtmlReportPath" -ForegroundColor Yellow
+try {
+    if (-not (Test-Path -Path $outputReportDirectory -PathType Container)) {
+        Write-Host "Creating report directory: $outputReportDirectory"
+        New-Item -Path $outputReportDirectory -ItemType Directory -Force -ErrorAction Stop | Out-Null
+    }
+    Set-Content -Path $finalHtmlReportPath -Value $htmlContent.ToString() -Encoding UTF8 -Force
+    Write-Host "HTML Report saved successfully to '$finalHtmlReportPath'." -ForegroundColor Green
+}
+catch {
+    Write-Error "Error saving HTML report to '$finalHtmlReportPath': $($_.Exception.Message)"
 }
 
 Write-Host "`nAnalysis complete." -ForegroundColor Green
