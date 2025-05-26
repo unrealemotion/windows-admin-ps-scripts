@@ -1,4 +1,4 @@
-IT License
+MMIT License
 
 Copyright (c) 2025 Asher Le
 
